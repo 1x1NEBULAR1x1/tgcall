@@ -25,6 +25,10 @@ BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Один event loop: FastAPI + бот."""
+    web_app_url = os.environ.get("WEB_APP_URL", "")
+    print(f"WEB_APP_URL={web_app_url or '(not set)'}")
+    print(f"BOT_TOKEN={'***' if BOT_TOKEN else '(not set)'}")
+    print(f"dist exists={Path(__file__).parent.joinpath('dist').exists()}")
     bot_task = None
     if BOT_TOKEN:
         from telegram_bot import run_bot

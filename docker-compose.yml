@@ -1,8 +1,9 @@
 services:
   backend:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/Dockerfile
+      network: host
     ports:
       - "8080:8080"
     env_file:

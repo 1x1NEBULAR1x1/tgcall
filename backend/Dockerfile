@@ -1,20 +1,25 @@
-FROM python:3.12-slim
+# Сборка из корня проекта: docker build -f backend/Dockerfile .
+# Stage 1: build frontend
+FROM node:20-alpine AS frontend
+WORKDIR /app
+COPY frontend/package*.json ./
+RUN npm ci --silent
+COPY frontend ./
+ENV VITE_API_URL=
+RUN npm run build
 
+# Stage 2: backend + frontend dist
+FROM python:3.12-slim
 WORKDIR /app
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
 
-COPY requirements.txt .
+COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
-
-# Статика фронта: соберите и скопируйте в backend перед сборкой образа:
-#   cd frontend && npm run build && cp -r dist ../backend/
-# Затем раскомментируйте следующую строку:
-# COPY dist/ ./dist/
+COPY backend/main.py backend/telegram_bot.py backend/rooms.py backend/auth.py ./
+COPY --from=frontend /app/dist ./dist
 
 EXPOSE 8080
-
 CMD ["python", "main.py"]
