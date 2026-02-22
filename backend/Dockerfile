@@ -3,7 +3,7 @@
 FROM node:20-alpine AS frontend
 WORKDIR /app
 COPY frontend/package*.json ./
-RUN npm ci --silent
+RUN npm install
 COPY frontend ./
 ENV VITE_API_URL=
 RUN npm run build
