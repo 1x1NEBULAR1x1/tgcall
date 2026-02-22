@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+.env
+*.egg-info/
+
+# Node
+node_modules/
+frontend/dist/
+
+# Uploads (optional: remove if you want to commit photos)
+backend/uploads/
+
+# IDE
+.idea/
+.vscode/
+*.swp

@@ -1,0 +1,4 @@
+.label {
+  font-size: 0.9rem;
+  color: var(--tg-theme-hint-color, rgba(228, 228, 231, 0.6));
+}

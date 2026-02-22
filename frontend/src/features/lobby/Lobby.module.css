@@ -1,0 +1,92 @@
+.root {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 60vh;
+  padding: 1rem;
+}
+
+.card {
+  flex-shrink: 0;
+}
+
+.cardContent {
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  padding: 1.75rem 2rem 2rem;
+  text-align: left;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+  align-self: stretch;
+}
+
+.cardInner {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 1.25rem;
+}
+
+.cardMessageContent {
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 1.75rem 2rem 2rem;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+  align-self: stretch;
+}
+
+.user {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 500;
+  padding: 0.5rem 0.75rem;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.user :global([class*="root"]) {
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+.message {
+  text-align: center;
+  padding: 0.5rem 1rem;
+  margin: 0;
+  font-size: 0.95rem;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.divider {
+  text-align: center;
+  font-size: 0.9rem;
+  margin: 0;
+  padding: 0.4rem 0.75rem;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.divider :global([class*="root"]) {
+  font-size: inherit;
+}
+
+.join {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.error {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #f87171;
+}
