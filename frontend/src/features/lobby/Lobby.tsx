@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { API_URL } from '../../config'
+import { safeJson } from '../../utils/safeJson'
 import type { AuthUser } from '../../types'
 import GlassSurface from '../../components/bits/GlassSurface'
 import GradientText from '../../components/bits/GradientText'
@@ -31,10 +32,11 @@ export function Lobby({ token, user, onJoinRoom, onCreateRoom }: LobbyProps) {
         body: JSON.stringify({ token }),
       })
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}))
-        throw new Error(err.detail || 'Не удалось создать комнату')
+        const err = await safeJson<{ detail?: string }>(res)
+        throw new Error(err?.detail || 'Не удалось создать комнату')
       }
-      const data = await res.json()
+      const data = await safeJson<{ room_id?: string }>(res)
+      if (!data?.room_id) throw new Error('Неверный ответ сервера')
       onCreateRoom(data.room_id)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Ошибка')

@@ -1,5 +1,6 @@
 import { API_URL } from '../config'
 import type { AuthResult } from '../types'
+import { safeJson } from '../utils/safeJson'
 
 /** Авторизация по initData из Telegram WebApp */
 export async function authWithTelegram(): Promise<AuthResult> {
@@ -11,10 +12,11 @@ export async function authWithTelegram(): Promise<AuthResult> {
     body: JSON.stringify({ initData }),
   })
   if (!res.ok) return { token: null, user: null, bot_username: null }
-  const data = await res.json()
+  const data = await safeJson<{ token?: string; user?: unknown; bot_username?: string }>(res)
+  if (!data?.token) return { token: null, user: null, bot_username: null }
   return {
     token: data.token,
-    user: data.user,
+    user: data.user ?? null,
     bot_username: data.bot_username || null,
   }
 }
