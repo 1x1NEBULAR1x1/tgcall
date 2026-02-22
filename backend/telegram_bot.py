@@ -5,8 +5,8 @@ from aiogram import Bot, Dispatcher
 from aiogram.filters import CommandStart
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message, WebAppInfo, MenuButtonWebApp
 
-BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
-WEB_APP_URL = os.environ.get("WEB_APP_URL", "https://your-frontend-url.com")
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
+WEB_APP_URL = os.environ.get("WEB_APP_URL")
 
 dp = Dispatcher()
 

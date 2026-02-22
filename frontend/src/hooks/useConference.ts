@@ -220,7 +220,9 @@ export function useConference({
       ws.onmessage = (event) => {
         let msg: Record<string, unknown>
         try {
-          msg = JSON.parse(event.data as string) as Record<string, unknown>
+          const raw = event.data
+          if (typeof raw !== 'string' || !raw.trim()) return
+          msg = JSON.parse(raw) as Record<string, unknown>
         } catch {
           return
         }

@@ -30,11 +30,12 @@ export default function GradientText({
 
   const animationDuration = animationSpeed * 1000;
 
-  useAnimationFrame(time => {
+  useAnimationFrame((time) => {
     if (isPaused) {
       lastTimeRef.current = null;
       return;
     }
+    if (typeof time !== 'number' || !Number.isFinite(time)) return;
 
     if (lastTimeRef.current === null) {
       lastTimeRef.current = time;
@@ -43,21 +44,22 @@ export default function GradientText({
 
     const deltaTime = time - lastTimeRef.current;
     lastTimeRef.current = time;
+    if (!Number.isFinite(deltaTime) || deltaTime < 0) return;
     elapsedRef.current += deltaTime;
 
+    let val: number;
     if (yoyo) {
       const fullCycle = animationDuration * 2;
       const cycleTime = elapsedRef.current % fullCycle;
-
       if (cycleTime < animationDuration) {
-        progress.set((cycleTime / animationDuration) * 100);
+        val = (cycleTime / animationDuration) * 100;
       } else {
-        progress.set(100 - ((cycleTime - animationDuration) / animationDuration) * 100);
+        val = 100 - ((cycleTime - animationDuration) / animationDuration) * 100;
       }
     } else {
-      // Continuously increase position for seamless looping
-      progress.set((elapsedRef.current / animationDuration) * 100);
+      val = (elapsedRef.current / animationDuration) * 100;
     }
+    progress.set(Number.isFinite(val) ? val : 0);
   });
 
   useEffect(() => {
@@ -65,14 +67,14 @@ export default function GradientText({
     progress.set(0);
   }, [animationSpeed, yoyo]);
 
-  const backgroundPosition = useTransform(progress, p => {
+  const backgroundPosition = useTransform(progress, (p) => {
+    const v = typeof p === 'number' && Number.isFinite(p) ? Math.max(0, Math.min(100, p)) : 0;
     if (direction === 'horizontal') {
-      return `${p}% 50%`;
+      return `${v}% 50%`;
     } else if (direction === 'vertical') {
-      return `50% ${p}%`;
+      return `50% ${v}%`;
     } else {
-      // For diagonal, move only horizontally to avoid interference patterns
-      return `${p}% 50%`;
+      return `${v}% 50%`;
     }
   });
 
