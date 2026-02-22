@@ -20,7 +20,7 @@ export function ConferencePage({
 }: ConferencePageProps) {
   return (
     <div className={`${styles.app} ${styles.appConference}`}>
-      <AppBackground className={styles.bg} />
+      <AppBackground className={styles.bg} simple />
       <Conference
         roomId={roomId}
         token={token}

@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { Renderer, Program, Mesh, Triangle } from 'ogl';
 
 import './LiquidChrome.css';
@@ -12,6 +12,14 @@ interface LiquidChromeProps extends React.HTMLAttributes<HTMLDivElement> {
   interactive?: boolean;
 }
 
+const FALLBACK_STYLE: React.CSSProperties = {
+  position: 'absolute',
+  inset: 0,
+  background: 'linear-gradient(135deg, #1a1a24 0%, #0f0f12 50%, #1a1625 100%)',
+  backgroundSize: '400% 400%',
+  animation: 'liquidChromeFallback 8s ease infinite',
+};
+
 export const LiquidChrome: React.FC<LiquidChromeProps> = ({
   baseColor = [0.1, 0.1, 0.1],
   speed = 0.2,
@@ -22,12 +30,19 @@ export const LiquidChrome: React.FC<LiquidChromeProps> = ({
   ...props
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const [useFallback, setUseFallback] = useState(false);
 
   useEffect(() => {
-    if (!containerRef.current) return;
+    if (!containerRef.current || useFallback) return;
 
     const container = containerRef.current;
-    const renderer = new Renderer({ antialias: true });
+    let renderer: Renderer;
+    try {
+      renderer = new Renderer({ antialias: true });
+    } catch {
+      setUseFallback(true);
+      return;
+    }
     const gl = renderer.gl;
     gl.clearColor(1, 1, 1, 1);
 
@@ -148,21 +163,32 @@ export const LiquidChrome: React.FC<LiquidChromeProps> = ({
     }
     animationId = requestAnimationFrame(update);
 
-    container.appendChild(gl.canvas);
+    const canvas = gl.canvas as HTMLCanvasElement;
+    const handleContextLost = () => {
+      setUseFallback(true);
+    };
+    canvas.addEventListener('webglcontextlost', handleContextLost);
+
+    container.appendChild(canvas);
 
     return () => {
+      canvas.removeEventListener('webglcontextlost', handleContextLost);
       cancelAnimationFrame(animationId);
       window.removeEventListener('resize', resize);
       if (interactive) {
         container.removeEventListener('mousemove', handleMouseMove);
         container.removeEventListener('touchmove', handleTouchMove);
       }
-      if (gl.canvas.parentElement) {
-        gl.canvas.parentElement.removeChild(gl.canvas);
+      if (canvas.parentElement) {
+        canvas.parentElement.removeChild(canvas);
       }
       gl.getExtension('WEBGL_lose_context')?.loseContext();
     };
-  }, [baseColor, speed, amplitude, frequencyX, frequencyY, interactive]);
+  }, [baseColor, speed, amplitude, frequencyX, frequencyY, interactive, useFallback]);
+
+  if (useFallback) {
+    return <div className="liquidChrome-container" style={FALLBACK_STYLE} {...props} />;
+  }
 
   return <div ref={containerRef} className="liquidChrome-container" {...props} />;
 };

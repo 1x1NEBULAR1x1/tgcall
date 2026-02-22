@@ -3,6 +3,7 @@ import { useAuth } from './hooks/useAuth'
 import { AuthLoadingPage } from './pages/AuthLoadingPage'
 import { LobbyPage } from './pages/LobbyPage'
 import { ConferencePage } from './pages/ConferencePage'
+import { ErrorBoundary } from './components/ErrorBoundary'
 
 function AppContent() {
   const { token, user, botUsername, authStatus } = useAuth()
@@ -65,5 +66,9 @@ function AppContent() {
 }
 
 export default function App() {
-  return <AppContent />
+  return (
+    <ErrorBoundary>
+      <AppContent />
+    </ErrorBoundary>
+  )
 }
