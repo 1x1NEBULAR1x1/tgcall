@@ -2,7 +2,7 @@
 # Stage 1: build frontend
 FROM node:20-alpine AS frontend
 WORKDIR /app
-COPY frontend/package*.json ./
+COPY frontend/package.json ./
 RUN npm install
 COPY frontend ./
 ENV VITE_API_URL=
