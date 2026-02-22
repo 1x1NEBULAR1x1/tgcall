@@ -39,9 +39,14 @@ export function CallMain({
 
   useEffect(() => {
     const el = audioRef.current
-    if (el && peerStream) {
-      el.srcObject = peerStream
-      el.play().catch(() => { })
+    if (!el || !peerStream) return
+    el.srcObject = peerStream
+    const play = () => el.play().catch(() => {})
+    play()
+    const onAddTrack = () => play()
+    peerStream.addEventListener('addtrack', onAddTrack)
+    return () => {
+      peerStream.removeEventListener('addtrack', onAddTrack)
     }
   }, [peerStream])
 

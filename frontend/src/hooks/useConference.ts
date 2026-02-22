@@ -67,6 +67,7 @@ export function useConference({
   const streamRef = useRef<MediaStream | null>(null)
   const wsRef = useRef<WebSocket | null>(null)
   const peerConnectionsRef = useRef<Record<string, RTCPeerConnection>>({})
+  const peerStreamsRef = useRef<Record<string, MediaStream>>({})
   const iceQueueRef = useRef<Record<string, object[]>>({})
   const myPeerIdRef = useRef<string | null>(null)
   const leaveIntentionalRef = useRef(false)
@@ -98,7 +99,24 @@ export function useConference({
     []
   )
 
+  const addPeerTrack = useCallback((peerId: string, track: MediaStreamTrack) => {
+    let stream = peerStreamsRef.current[peerId]
+    if (!stream) {
+      stream = new MediaStream()
+      peerStreamsRef.current[peerId] = stream
+    }
+    if (!stream.getTracks().find((t) => t.id === track.id)) {
+      stream.addTrack(track)
+      setPeers((prev) => {
+        const next = { ...prev }
+        if (next[peerId]) next[peerId] = { ...next[peerId], stream }
+        return next
+      })
+    }
+  }, [])
+
   const setPeerStream = useCallback((peerId: string, stream: MediaStream) => {
+    peerStreamsRef.current[peerId] = stream
     setPeers((prev) => {
       const next = { ...prev }
       if (next[peerId]) next[peerId] = { ...next[peerId], stream }
@@ -127,6 +145,7 @@ export function useConference({
       pc.close()
       delete peerConnectionsRef.current[peerId]
     }
+    delete peerStreamsRef.current[peerId]
   }, [])
 
   useEffect(() => {
@@ -276,8 +295,7 @@ export function useConference({
           iceQueueRef.current[peerId] = []
           const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS, bundlePolicy: 'max-bundle' })
           streamForPeer.getTracks().forEach((track) => pc.addTrack(track, streamForPeer))
-          pc.ontrack = (e: RTCTrackEvent) =>
-            setPeerStream(peerId, e.streams?.[0] || new MediaStream([e.track]))
+          pc.ontrack = (e: RTCTrackEvent) => addPeerTrack(peerId, e.track)
           pc.onicecandidate = (e: RTCPeerConnectionIceEvent) => {
             if (e.candidate && ws.readyState === WebSocket.OPEN)
               ws.send(JSON.stringify({ type: 'ice', to_peer_id: peerId, payload: e.candidate }))
@@ -319,8 +337,7 @@ export function useConference({
               const stream = streamRef.current
               pc = new RTCPeerConnection({ iceServers: ICE_SERVERS, bundlePolicy: 'max-bundle' })
               if (stream) stream.getTracks().forEach((track) => pc?.addTrack(track, stream))
-              pc.ontrack = (e: RTCTrackEvent) =>
-                setPeerStream(fromId, e.streams?.[0] || new MediaStream([e.track]))
+              pc.ontrack = (e: RTCTrackEvent) => addPeerTrack(fromId, e.track)
               pc.onicecandidate = (e: RTCPeerConnectionIceEvent) => {
                 if (e.candidate && ws.readyState === WebSocket.OPEN)
                   ws.send(JSON.stringify({ type: 'ice', to_peer_id: fromId, payload: e.candidate }))
@@ -378,6 +395,7 @@ export function useConference({
       ws.onclose = () => {
         Object.values(peerConnectionsRef.current).forEach((pc) => pc.close())
         peerConnectionsRef.current = {}
+        peerStreamsRef.current = {}
         setPeers({})
         setPeerVideoEnabled({})
         setPeerAudioEnabled({})
@@ -411,8 +429,9 @@ export function useConference({
       }
       Object.values(peerConnectionsRef.current).forEach((pc) => pc.close())
       peerConnectionsRef.current = {}
+      peerStreamsRef.current = {}
     }
-  }, [status, roomId, token, addPeer, removePeer, setPeerStream, drainIceQueue])
+  }, [status, roomId, token, addPeer, removePeer, addPeerTrack, drainIceQueue])
 
   const toggleVideo = useCallback(() => {
     const stream = streamRef.current
