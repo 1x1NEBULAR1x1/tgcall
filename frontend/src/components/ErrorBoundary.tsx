@@ -49,6 +49,11 @@ export class ErrorBoundary extends Component<Props, State> {
           }}
         >
           <p style={{ margin: 0, fontSize: 18 }}>Произошла ошибка</p>
+          {this.state.error && (
+            <p style={{ margin: 0, fontSize: 12, opacity: 0.8, maxWidth: 480, wordBreak: 'break-word' }}>
+              {this.state.error.message}
+            </p>
+          )}
           <button
             type="button"
             className={`${btnStyles.btn} ${btnStyles.primary}`}

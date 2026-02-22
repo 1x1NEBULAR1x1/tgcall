@@ -154,11 +154,10 @@ export function useConference({
   useEffect(() => {
     let cancelled = false
     const run = async () => {
-      const videoConstraints = {
-        facingMode: 'user' as const,
-        width: { ideal: 1280, min: 640 },
-        height: { ideal: 720, min: 480 },
-      }
+      const isMobile = /Android|iPhone|iPad|iPod|webOS/i.test(navigator.userAgent)
+      const videoConstraints = isMobile
+        ? { facingMode: 'user' as const, width: { ideal: 1280, min: 640 }, height: { ideal: 720, min: 480 } }
+        : { width: { ideal: 640 }, height: { ideal: 480 } }
       let stream: MediaStream | null = null
       try {
         stream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints, audio: true })
@@ -225,6 +224,7 @@ export function useConference({
         } catch {
           return
         }
+        try {
         if (msg.type === 'you_joined') {
           myPeerIdRef.current = (msg.peer_id as string) ?? null
           reconnectAttemptRef.current = 0
@@ -353,6 +353,9 @@ export function useConference({
               pc.addIceCandidate(new RTCIceCandidate(payload as RTCIceCandidateInit)).catch(() => {})
             }
           }
+        }
+        } catch (err) {
+          console.error('Conference ws message error:', err)
         }
       }
 
