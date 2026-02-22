@@ -2,6 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App'
 import './index.css'
+import { pushGlobalError } from './utils/globalErrorQueue'
 
 // Ловим ошибки вне React (async, fetch, event handlers)
 function showErrorOverlay(message: string, stack?: string) {
@@ -26,11 +27,13 @@ function showErrorOverlay(message: string, stack?: string) {
   document.body.appendChild(el)
 }
 window.addEventListener('error', (e) => {
+  pushGlobalError('error', e.message, e.error?.stack)
   showErrorOverlay(e.message, e.error?.stack)
 })
 window.addEventListener('unhandledrejection', (e) => {
   const msg = e.reason?.message ?? String(e.reason)
   const stack = e.reason?.stack
+  pushGlobalError('unhandledrejection', msg, stack)
   showErrorOverlay(msg, stack)
   e.preventDefault()
 })

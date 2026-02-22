@@ -17,6 +17,12 @@ BOT_TOKEN=ваш_токен_от_BotFather
 JWT_SECRET=случайная_строка_для_JWT
 WEB_APP_URL=https://ваш-домен-или-ngrok/
 BOT_USERNAME=username_вашего_бота
+
+# TURN-сервер для видеозвонков между разными сетями (Wi‑Fi / мобильный интернет).
+# Без TURN звонки работают только в одной сети. Рекомендуется coturn:
+# TURN_URL=turn:ваш-сервер:3478
+# TURN_USERNAME=user
+# TURN_CREDENTIAL=secret
 ```
 
 **Важно:** `WEB_APP_URL` должен быть **HTTPS** — Telegram не принимает HTTP для Web App (кроме localhost).

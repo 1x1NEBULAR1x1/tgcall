@@ -1,5 +1,6 @@
 import GradientText from '../../components/bits/GradientText'
 import { useConference } from '../../hooks/useConference'
+import { useDebug } from '../../context/DebugContext'
 import type { AuthUser } from '../../types'
 import { Loader } from '../../shared/ui/Loader'
 import btnStyles from '../../shared/ui/buttons.module.css'
@@ -19,6 +20,7 @@ export interface ConferenceProps {
 }
 
 export function Conference({ roomId, token, user, botUsername, onLeave }: ConferenceProps) {
+  const { setConferenceDebug, addError } = useDebug()
   const {
     status,
     errorMsg,
@@ -41,7 +43,7 @@ export function Conference({ roomId, token, user, botUsername, onLeave }: Confer
     toggleAudio,
     toggleFacingMode,
     handleLeave,
-  } = useConference({ roomId, token, user, botUsername, onLeave })
+  } = useConference({ roomId, token, user, botUsername, onLeave, setConferenceDebug, addError })
 
   const peerList = Object.entries(peers)
   const primaryPeer = peerList[0]

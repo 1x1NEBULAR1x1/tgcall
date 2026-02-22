@@ -4,6 +4,8 @@ import { AuthLoadingPage } from './pages/AuthLoadingPage'
 import { LobbyPage } from './pages/LobbyPage'
 import { ConferencePage } from './pages/ConferencePage'
 import { ErrorBoundary } from './components/ErrorBoundary'
+import { DebugProvider } from './context/DebugContext'
+import { DebugPanel } from './components/DebugPanel'
 
 function AppContent() {
   const { token, user, botUsername, authStatus } = useAuth()
@@ -68,7 +70,10 @@ function AppContent() {
 export default function App() {
   return (
     <ErrorBoundary>
-      <AppContent />
+      <DebugProvider>
+        <AppContent />
+        <DebugPanel />
+      </DebugProvider>
     </ErrorBoundary>
   )
 }

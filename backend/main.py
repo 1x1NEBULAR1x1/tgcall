@@ -285,6 +285,74 @@ async def conference_ws(websocket: WebSocket):
         await manager.broadcast_to_others(room_id, peer_id, {"type": "peer_left", "peer_id": peer_id})
 
 
+# ---------- WebRTC ICE (TURN для связи через разные сети) ----------
+def _is_localhost_turn(url: str) -> bool:
+    """TURN на 127.0.0.1/localhost бесполезен для клиентов в других сетях."""
+    u = (url or "").lower()
+    return "127.0.0.1" in u or "localhost" in u
+
+
+@app.get("/ice-servers")
+async def ice_servers(debug: bool = False):
+    """Список ICE-серверов для WebRTC. TURN обязателен для связи через разные сети."""
+    servers = [
+        {"urls": "stun:stun.l.google.com:19302"},
+        {"urls": "stun:stun1.l.google.com:19302"},
+    ]
+    diag = {"metered_tried": False, "metered_ok": False, "metered_error": None}
+
+    # Metered Open Relay — бесплатный публичный TURN (20 GB/мес)
+    metered_app = os.environ.get("METERED_APP_NAME", "").strip().removesuffix(".metered.live")
+    metered_key = os.environ.get("METERED_TURN_API_KEY", "").strip()
+    if metered_app and metered_key:
+        diag["metered_tried"] = True
+        try:
+            url = f"https://{metered_app}.metered.live/api/v1/turn/credentials"
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                r = await client.get(url, params={"apiKey": metered_key})
+                if r.status_code == 200:
+                    data = r.json()
+                    if isinstance(data, list) and data:
+                        diag["metered_ok"] = True
+                        print(f"[ICE] Metered OK: {len(data)} servers")
+                        result = {"iceServers": data}
+                        if debug:
+                            result["_debug"] = diag
+                        return result
+                    if isinstance(data, dict) and data.get("iceServers"):
+                        diag["metered_ok"] = True
+                        print(f"[ICE] Metered OK (dict): {len(data['iceServers'])} servers")
+                        result = {"iceServers": data["iceServers"]}
+                        if debug:
+                            result["_debug"] = diag
+                        return result
+                    diag["metered_error"] = "Неожиданный формат ответа"
+                    print("[ICE] Metered: unexpected response format")
+                else:
+                    err = f"HTTP {r.status_code}: {r.text[:150]}"
+                    diag["metered_error"] = err
+                    print(f"[ICE] Metered failed: {err}")
+        except Exception as e:
+            err = f"{type(e).__name__}: {e}"
+            diag["metered_error"] = err
+            print(f"[ICE] Metered error: {err}")
+
+    # Свой TURN (должен быть по публичному IP/домену, не 127.0.0.1!)
+    turn_url = os.environ.get("TURN_URL", "").strip()
+    if turn_url and not _is_localhost_turn(turn_url):
+        s = {"urls": turn_url}
+        if os.environ.get("TURN_USERNAME"):
+            s["username"] = os.environ.get("TURN_USERNAME", "")
+        if os.environ.get("TURN_CREDENTIAL"):
+            s["credential"] = os.environ.get("TURN_CREDENTIAL", "")
+        servers.append(s)
+
+    result = {"iceServers": servers}
+    if debug:
+        result["_debug"] = diag
+    return result
+
+
 # ---------- Health & Static ----------
 @app.get("/health")
 def health():

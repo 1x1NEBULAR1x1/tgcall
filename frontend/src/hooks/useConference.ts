@@ -1,7 +1,9 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { API_URL, getWsUrl } from '../config'
+import { safeJson } from '../utils/safeJson'
 import type { AuthUser } from '../types'
 import type { PeerInfo } from '../types'
+import type { ConferenceDebugInfo, IceDebugInfo } from '../context/DebugContext'
 
 export interface UseConferenceProps {
   roomId: string
@@ -9,6 +11,8 @@ export interface UseConferenceProps {
   user: AuthUser | null
   botUsername: string | null
   onLeave: () => void
+  setConferenceDebug?: (info: ConferenceDebugInfo | null) => void
+  addError?: (type: 'error' | 'unhandledrejection', message: string, stack?: string) => void
 }
 
 export type ConferenceStatus = 'loading' | 'ready' | 'error'
@@ -43,6 +47,8 @@ export function useConference({
   user: _user,
   botUsername,
   onLeave,
+  setConferenceDebug,
+  addError,
 }: UseConferenceProps): UseConferenceResult {
   const [status, setStatus] = useState<ConferenceStatus>('loading')
   const [errorMsg, setErrorMsg] = useState('')
@@ -68,16 +74,44 @@ export function useConference({
   const wsRef = useRef<WebSocket | null>(null)
   const peerConnectionsRef = useRef<Record<string, RTCPeerConnection>>({})
   const peerStreamsRef = useRef<Record<string, MediaStream>>({})
+  const connectedOnceRef = useRef<Record<string, boolean>>({})
   const iceQueueRef = useRef<Record<string, object[]>>({})
   const myPeerIdRef = useRef<string | null>(null)
   const leaveIntentionalRef = useRef(false)
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const reconnectAttemptRef = useRef(0)
+  const iceServersListRef = useRef<RTCIceServer[]>([])
+  const wsUrlRef = useRef<string>('')
+  const iceDebugRef = useRef<IceDebugInfo | null>(null)
 
-  const ICE_SERVERS: RTCIceServer[] = [
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' },
-  ]
+  const updateDebug = useCallback(() => {
+    if (!setConferenceDebug) return
+    const ws = wsRef.current
+    const wsState = ws ? ['CONNECTING', 'OPEN', 'CLOSING', 'CLOSED'][ws.readyState] ?? 'UNKNOWN' : 'null'
+    const peerStates: Record<string, { connectionState: string; iceConnectionState: string }> = {}
+    Object.entries(peerConnectionsRef.current).forEach(([id, pc]) => {
+      peerStates[id] = {
+        connectionState: pc.connectionState,
+        iceConnectionState: pc.iceConnectionState,
+      }
+    })
+    const list = iceServersListRef.current
+    const iceUrls = list.flatMap((s) => (typeof s.urls === 'string' ? [s.urls] : Array.isArray(s.urls) ? s.urls : []))
+    const hasTurn = iceUrls.some((u) => u.includes('turn:') || u.includes('turns:'))
+    const stream = streamRef.current
+    setConferenceDebug({
+      wsUrl: wsUrlRef.current,
+      wsState,
+      iceServers: iceUrls,
+      hasTurn,
+      iceDebug: iceDebugRef.current,
+      peerStates,
+      localTracks: {
+        video: !!stream?.getVideoTracks()[0],
+        audio: !!stream?.getAudioTracks()[0],
+      },
+    })
+  }, [setConferenceDebug])
 
   const drainIceQueue = useCallback((peerId: string) => {
     const pc = peerConnectionsRef.current[peerId]
@@ -105,14 +139,16 @@ export function useConference({
       stream = new MediaStream()
       peerStreamsRef.current[peerId] = stream
     }
-    if (!stream.getTracks().find((t) => t.id === track.id)) {
-      stream.addTrack(track)
-      setPeers((prev) => {
-        const next = { ...prev }
-        if (next[peerId]) next[peerId] = { ...next[peerId], stream }
-        return next
-      })
-    }
+    if (stream.getTracks().some((t) => t.id === track.id)) return
+    stream.addTrack(track)
+    const streamToSet = stream.clone()
+    setPeers((prev) => {
+      const next = { ...prev }
+      const existing = next[peerId]
+      const peer = existing ?? { displayName: 'Участник', stream: null as MediaStream | null, userId: null as number | null }
+      next[peerId] = { ...peer, stream: streamToSet }
+      return next
+    })
   }, [])
 
   const setPeerStream = useCallback((peerId: string, stream: MediaStream) => {
@@ -146,6 +182,7 @@ export function useConference({
       delete peerConnectionsRef.current[peerId]
     }
     delete peerStreamsRef.current[peerId]
+    delete connectedOnceRef.current[peerId]
   }, [])
 
   useEffect(() => {
@@ -235,7 +272,42 @@ export function useConference({
       `/ws/conference?room_id=${encodeURIComponent(roomId)}&token=${encodeURIComponent(token)}`
     )
 
-    const setupHandlers = (ws: WebSocket) => {
+    const defaultIceServers: RTCIceServer[] = [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:stun1.l.google.com:19302' },
+    ]
+
+    const hasTurn = (list: RTCIceServer[]) =>
+      list.some((s) => {
+        const u = (typeof s.urls === 'string' ? s.urls : Array.isArray(s.urls) ? s.urls.join(' ') : '') || ''
+        return u.includes('turn:') || u.includes('turns:')
+      })
+
+    let cancelled = false
+    const run = async () => {
+      let iceServers = defaultIceServers
+      iceDebugRef.current = null
+      try {
+        const r = await fetch(`${API_URL}/ice-servers?debug=1`)
+        if (r.ok) {
+          const d = await safeJson<{ iceServers?: RTCIceServer[]; _debug?: IceDebugInfo }>(r)
+          if (d?.iceServers?.length) iceServers = d.iceServers
+          if (d?._debug) iceDebugRef.current = d._debug
+        }
+      } catch { /* use defaults */ }
+      if (cancelled) return
+
+    const setupHandlers = (ws: WebSocket, iceServersList: RTCIceServer[]) => {
+      iceServersListRef.current = iceServersList
+      wsUrlRef.current = wsUrl
+      updateDebug()
+      const rtcOptions: RTCConfiguration = {
+        iceServers: iceServersList,
+        bundlePolicy: 'max-bundle',
+      }
+      if (hasTurn(iceServersList)) {
+        rtcOptions.iceTransportPolicy = 'relay' // форсировать TURN — помогает при разных сетях
+      }
       ws.onmessage = (event) => {
         let msg: Record<string, unknown>
         try {
@@ -293,15 +365,18 @@ export function useConference({
           if (!streamForPeer) return
           const peerId = msg.peer_id as string
           iceQueueRef.current[peerId] = []
-          const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS, bundlePolicy: 'max-bundle' })
+          const pc = new RTCPeerConnection(rtcOptions)
           streamForPeer.getTracks().forEach((track) => pc.addTrack(track, streamForPeer))
           pc.ontrack = (e: RTCTrackEvent) => addPeerTrack(peerId, e.track)
+          pc.oniceconnectionstatechange = () => updateDebug()
           pc.onicecandidate = (e: RTCPeerConnectionIceEvent) => {
             if (e.candidate && ws.readyState === WebSocket.OPEN)
               ws.send(JSON.stringify({ type: 'ice', to_peer_id: peerId, payload: e.candidate }))
           }
           pc.onconnectionstatechange = () => {
-            if (pc.connectionState === 'failed' && typeof pc.restartIce === 'function') {
+            updateDebug()
+            if (pc.connectionState === 'connected') connectedOnceRef.current[peerId] = true
+            if (pc.connectionState === 'failed' && connectedOnceRef.current[peerId] && typeof pc.restartIce === 'function') {
               pc.restartIce()
               const send = (desc: RTCSessionDescriptionInit, type: 'offer' | 'answer') => {
                 pc.setLocalDescription(desc).then(() => drainIceQueue(peerId)).catch(() => {})
@@ -335,16 +410,19 @@ export function useConference({
             if (!pc) {
               iceQueueRef.current[fromId] = []
               const stream = streamRef.current
-              pc = new RTCPeerConnection({ iceServers: ICE_SERVERS, bundlePolicy: 'max-bundle' })
+              pc = new RTCPeerConnection(rtcOptions)
               if (stream) stream.getTracks().forEach((track) => pc?.addTrack(track, stream))
               pc.ontrack = (e: RTCTrackEvent) => addPeerTrack(fromId, e.track)
+              pc.oniceconnectionstatechange = () => updateDebug()
               pc.onicecandidate = (e: RTCPeerConnectionIceEvent) => {
                 if (e.candidate && ws.readyState === WebSocket.OPEN)
                   ws.send(JSON.stringify({ type: 'ice', to_peer_id: fromId, payload: e.candidate }))
               }
               pc.onconnectionstatechange = () => {
+                updateDebug()
                 const conn = peerConnectionsRef.current[fromId]
-                if (conn?.connectionState === 'failed' && typeof conn.restartIce === 'function') {
+                if (conn?.connectionState === 'connected') connectedOnceRef.current[fromId] = true
+                if (conn?.connectionState === 'failed' && connectedOnceRef.current[fromId] && typeof conn.restartIce === 'function') {
                   conn.restartIce()
                   const send = (desc: RTCSessionDescriptionInit, type: 'offer' | 'answer') => {
                     conn.setLocalDescription(desc).then(() => drainIceQueue(fromId)).catch(() => {})
@@ -384,18 +462,24 @@ export function useConference({
           }
         }
         } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err)
+          addError?.('error', `Conference: ${msg}`, err instanceof Error ? err.stack : undefined)
           console.error('Conference ws message error:', err)
         }
       }
 
+      ws.onopen = () => updateDebug()
       ws.onerror = () => {
+        updateDebug()
         if (ws.readyState === WebSocket.CLOSING || ws.readyState === WebSocket.CLOSED) return
         ws.close()
       }
       ws.onclose = () => {
+        updateDebug()
         Object.values(peerConnectionsRef.current).forEach((pc) => pc.close())
         peerConnectionsRef.current = {}
         peerStreamsRef.current = {}
+        connectedOnceRef.current = {}
         setPeers({})
         setPeerVideoEnabled({})
         setPeerAudioEnabled({})
@@ -408,17 +492,22 @@ export function useConference({
           reconnectTimeoutRef.current = null
           const next = new WebSocket(wsUrl)
           wsRef.current = next
-          setupHandlers(next)
+          setupHandlers(next, iceServersList)
         }, delay)
       }
     }
 
     const ws = new WebSocket(wsUrl)
     wsRef.current = ws
-    setupHandlers(ws)
+    setupHandlers(ws, iceServers)
+    }
+
+    run()
 
     return () => {
+      cancelled = true
       leaveIntentionalRef.current = true
+      setConferenceDebug?.(null)
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current)
         reconnectTimeoutRef.current = null
@@ -430,8 +519,9 @@ export function useConference({
       Object.values(peerConnectionsRef.current).forEach((pc) => pc.close())
       peerConnectionsRef.current = {}
       peerStreamsRef.current = {}
+      connectedOnceRef.current = {}
     }
-  }, [status, roomId, token, addPeer, removePeer, addPeerTrack, drainIceQueue])
+  }, [status, roomId, token, addPeer, removePeer, addPeerTrack, drainIceQueue, updateDebug, setConferenceDebug])
 
   const toggleVideo = useCallback(() => {
     const stream = streamRef.current

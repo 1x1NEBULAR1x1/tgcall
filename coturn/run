@@ -1,0 +1,11 @@
+docker run -d --name coturn \
+  -p 3478:3478/udp \
+  -p 3478:3478/tcp \
+  -p 5349:5349/tcp \
+  -e TURN_USERNAME=turn_tgcall \
+  -e TURN_PASSWORD=G@$$PR0MHY1N1A \
+  -e TURN_REALM=v622631.hosted-by-vdsina.com \
+  instrumentisto/coturn
+
+
+  YAK0N41LN@L1C0TW0J3JM@MK
