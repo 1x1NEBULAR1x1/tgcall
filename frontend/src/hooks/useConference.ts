@@ -285,11 +285,16 @@ export function useConference({
           pc.onconnectionstatechange = () => {
             if (pc.connectionState === 'failed' && typeof pc.restartIce === 'function') {
               pc.restartIce()
-              pc.createOffer().then((offer) => {
-                pc.setLocalDescription(offer).then(() => drainIceQueue(peerId))
+              const send = (desc: RTCSessionDescriptionInit, type: 'offer' | 'answer') => {
+                pc.setLocalDescription(desc).then(() => drainIceQueue(peerId)).catch(() => {})
                 if (ws.readyState === WebSocket.OPEN)
-                  ws.send(JSON.stringify({ type: 'offer', to_peer_id: peerId, payload: offer }))
-              }).catch(() => {})
+                  ws.send(JSON.stringify({ type, to_peer_id: peerId, payload: desc }))
+              }
+              if (pc.signalingState === 'have-remote-offer') {
+                pc.createAnswer().then((a) => send(a, 'answer')).catch(() => {})
+              } else {
+                pc.createOffer().then((o) => send(o, 'offer')).catch(() => {})
+              }
             }
           }
           peerConnectionsRef.current[peerId] = pc
@@ -324,11 +329,16 @@ export function useConference({
                 const conn = peerConnectionsRef.current[fromId]
                 if (conn?.connectionState === 'failed' && typeof conn.restartIce === 'function') {
                   conn.restartIce()
-                  conn.createOffer().then((offer) => {
-                    conn.setLocalDescription(offer).then(() => drainIceQueue(fromId))
+                  const send = (desc: RTCSessionDescriptionInit, type: 'offer' | 'answer') => {
+                    conn.setLocalDescription(desc).then(() => drainIceQueue(fromId)).catch(() => {})
                     if (ws.readyState === WebSocket.OPEN)
-                      ws.send(JSON.stringify({ type: 'offer', to_peer_id: fromId, payload: offer }))
-                  }).catch(() => {})
+                      ws.send(JSON.stringify({ type, to_peer_id: fromId, payload: desc }))
+                  }
+                  if (conn.signalingState === 'have-remote-offer') {
+                    conn.createAnswer().then((a) => send(a, 'answer')).catch(() => {})
+                  } else {
+                    conn.createOffer().then((o) => send(o, 'offer')).catch(() => {})
+                  }
                 }
               }
               peerConnectionsRef.current[fromId] = pc
