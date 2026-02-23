@@ -1,4 +1,5 @@
 import AppBackground from '../components/AppBackground'
+import { DebugPanel } from '../components/DebugPanel'
 import { Lobby } from '../features/lobby'
 import type { AuthUser } from '../types'
 import styles from './AppLayout.module.css'
@@ -17,6 +18,7 @@ export function LobbyPage({ token, user, onJoinRoom, onCreateRoom }: LobbyPagePr
       <div className={styles.content}>
         <Lobby token={token} user={user} onJoinRoom={onJoinRoom} onCreateRoom={onCreateRoom} />
       </div>
+      <DebugPanel />
     </div>
   )
 }

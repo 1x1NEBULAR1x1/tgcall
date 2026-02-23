@@ -3,10 +3,27 @@ import { useDebug } from '../context/DebugContext'
 import { API_URL } from '../config'
 import styles from './DebugPanel.module.css'
 
-export function DebugPanel() {
+interface DebugPanelProps {
+  placement?: 'default' | 'conference-top'
+  audioWsMode?: boolean
+  onToggleAudioWs?: () => void
+  noiseSuppression?: boolean
+  onToggleNoiseSuppression?: () => void
+}
+
+type TabId = 'settings' | 'debug'
+
+export function DebugPanel({
+  placement = 'default',
+  audioWsMode,
+  onToggleAudioWs,
+  noiseSuppression,
+  onToggleNoiseSuppression,
+}: DebugPanelProps) {
   const { globalErrors, clearErrors, conferenceDebug } = useDebug()
   const [open, setOpen] = useState(false)
-  const [expanded, setExpanded] = useState(false)
+  const [tab, setTab] = useState<TabId>('settings')
+  const [copyFeedback, setCopyFeedback] = useState(false)
 
   const hasErrors = globalErrors.length > 0
   const hasConference = !!conferenceDebug
@@ -19,33 +36,126 @@ export function DebugPanel() {
         p.iceConnectionState === 'failed'
     )
 
-  return (
-    <div className={styles.root}>
-      <button
-        type="button"
-        className={styles.toggle}
-        onClick={() => setOpen((o) => !o)}
-        title="Дебаг"
-        data-badge={hasErrors || hasPeerIssues ? '!' : undefined}
-      >
-        ⚙
-      </button>
-      {open && (
-        <div className={styles.panel}>
-          <div className={styles.header}>
-            <span>Дебаг</span>
-            <div className={styles.actions}>
-              {globalErrors.length > 0 && (
-                <button type="button" className={styles.clearBtn} onClick={clearErrors}>
-                  Очистить
-                </button>
-              )}
-              <button type="button" onClick={() => setExpanded((e) => !e)}>
-                {expanded ? '−' : '+'}
-              </button>
-            </div>
-          </div>
-          <div className={styles.body}>
+  const copyToClipboard = () => {
+    const lines: string[] = []
+    lines.push('=== Окружение ===')
+    lines.push(`API_URL: ${API_URL || '(same-origin)'}`)
+    lines.push(`protocol: ${typeof location !== 'undefined' ? location.protocol : '?'}`)
+    if (conferenceDebug) {
+      lines.push('')
+      lines.push('=== Конференция ===')
+      lines.push(`WebSocket: ${conferenceDebug.wsState} ${conferenceDebug.wsUrl || ''}`)
+      lines.push(`TURN: ${conferenceDebug.hasTurn ? '✓' : '✗'}`)
+      lines.push(`ICE: ${conferenceDebug.iceServers.join(', ')}`)
+      lines.push(`Local: vid=${conferenceDebug.localTracks.video ? '✓' : '✗'} aud=${conferenceDebug.localTracks.audio ? '✓' : '✗'}`)
+      Object.entries(conferenceDebug.peerStates).forEach(([id, p]) => {
+        lines.push(`Peer ${id}: conn=${p.connectionState} ice=${p.iceConnectionState}`)
+      })
+    }
+    if (globalErrors.length > 0) {
+      lines.push('')
+      lines.push('=== Ошибки ===')
+      globalErrors.slice(-10).reverse().forEach((e) => {
+        lines.push(`[${e.time}] [${e.type}] ${e.message}`)
+        if (e.stack) lines.push(e.stack)
+      })
+    }
+    const text = lines.join('\n')
+    navigator.clipboard.writeText(text).then(() => {
+      setCopyFeedback(true)
+      setTimeout(() => setCopyFeedback(false), 1500)
+    })
+  }
+
+  const panelInner = (
+    <>
+      <div className={styles.header}>
+        <span>Дебаг</span>
+        <div className={styles.tabs}>
+          <button
+            type="button"
+            className={`${styles.tab} ${tab === 'settings' ? styles.tabActive : ''}`}
+            onClick={() => setTab('settings')}
+          >
+            Настройки
+          </button>
+          <button
+            type="button"
+            className={`${styles.tab} ${tab === 'debug' ? styles.tabActive : ''}`}
+            onClick={() => setTab('debug')}
+          >
+            Дебаг
+          </button>
+        </div>
+      </div>
+      <div className={styles.body}>
+        {tab === 'settings' && (
+          <>
+            {conferenceDebug && onToggleAudioWs && (
+              <section>
+                <h4>Аудио</h4>
+                <div className={styles.toggleRow}>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={!!audioWsMode}
+                      onChange={onToggleAudioWs}
+                    />
+                    <span>Аудио через WebSocket</span>
+                  </label>
+                  {audioWsMode && <span className={styles.badge}>вкл</span>}
+                </div>
+                {onToggleNoiseSuppression && (
+                  <div className={styles.toggleRow}>
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={!!noiseSuppression}
+                        onChange={onToggleNoiseSuppression}
+                      />
+                      <span>Шумоподавление</span>
+                    </label>
+                    {noiseSuppression && <span className={styles.badge}>вкл</span>}
+                  </div>
+                )}
+              </section>
+            )}
+            {conferenceDebug && (
+              <section>
+                <h4>Статус подключения</h4>
+                <div className={styles.statusBlock}>
+                  <div className={conferenceDebug.wsState === 'OPEN' ? styles.statusOk : styles.statusWarn}>
+                    WebSocket: {conferenceDebug.wsState}
+                  </div>
+                  <div className={conferenceDebug.hasTurn ? styles.statusOk : styles.statusWarn}>
+                    TURN: {conferenceDebug.hasTurn ? '✓' : '✗'}
+                  </div>
+                  <div className={styles.statusOk}>
+                    Local: vid={conferenceDebug.localTracks.video ? '✓' : '✗'} aud={conferenceDebug.localTracks.audio ? '✓' : '✗'}
+                  </div>
+                  {Object.keys(conferenceDebug.peerStates).length > 0 && (
+                    <>
+                      {Object.entries(conferenceDebug.peerStates).map(([id, p]) => (
+                        <div
+                          key={id}
+                          className={
+                            p.connectionState === 'connected' && p.iceConnectionState === 'connected'
+                              ? styles.statusOk
+                              : styles.statusWarn
+                          }
+                        >
+                          Peer {id}: conn={p.connectionState} ice={p.iceConnectionState}
+                        </div>
+                      ))}
+                    </>
+                  )}
+                </div>
+              </section>
+            )}
+          </>
+        )}
+        {tab === 'debug' && (
+          <>
             <section>
               <h4>Окружение</h4>
               <pre className={styles.pre}>
@@ -54,7 +164,6 @@ export function DebugPanel() {
                 protocol: {typeof location !== 'undefined' ? location.protocol : '?'}
               </pre>
             </section>
-
             {conferenceDebug && (
               <section>
                 <h4>Конференция</h4>
@@ -68,54 +177,101 @@ export function DebugPanel() {
                       <span className={styles.warn}>Metered: {conferenceDebug.iceDebug.metered_error}</span>
                     </>
                   )}
-                  {conferenceDebug.iceDebug?.metered_tried && !conferenceDebug.iceDebug?.metered_ok && !conferenceDebug.iceDebug?.metered_error && (
-                    <>
-                      {'\n'}
-                      <span className={styles.warn}>Metered: нет ответа (проверь .env)</span>
-                    </>
-                  )}
                   {'\n'}
-                  ICE: {conferenceDebug.iceServers.slice(0, 3).join(', ')}
-                  {conferenceDebug.iceServers.length > 3 && ` +${conferenceDebug.iceServers.length - 3}`}
+                  ICE: {conferenceDebug.iceServers.join(', ')}
                   {'\n'}
                   Local: vid={conferenceDebug.localTracks.video ? '✓' : '✗'} aud={conferenceDebug.localTracks.audio ? '✓' : '✗'}
+                  {Object.keys(conferenceDebug.peerStates).length > 0 && (
+                    <>
+                      {'\n'}
+                      {Object.entries(conferenceDebug.peerStates).map(([id, p]) => (
+                        <span
+                          key={id}
+                          className={
+                            p.connectionState === 'connected' && p.iceConnectionState === 'connected'
+                              ? styles.ok
+                              : styles.warn
+                          }
+                        >
+                          {'\n'}Peer {id}: conn={p.connectionState} ice={p.iceConnectionState}
+                        </span>
+                      ))}
+                    </>
+                  )}
                 </pre>
-                {Object.keys(conferenceDebug.peerStates).length > 0 && (
-                  <>
-                    <h4>Peer connections</h4>
-                    {Object.entries(conferenceDebug.peerStates).map(([id, p]) => (
-                      <div
-                        key={id}
-                        className={
-                          p.connectionState === 'connected' && p.iceConnectionState === 'connected'
-                            ? styles.ok
-                            : styles.warn
-                        }
-                      >
-                        {id}: conn={p.connectionState} ice={p.iceConnectionState}
-                      </div>
-                    ))}
-                  </>
-                )}
               </section>
             )}
-
-            {globalErrors.length > 0 && (
-              <section>
+            <section>
+              <div className={styles.sectionHeader}>
                 <h4>Ошибки ({globalErrors.length})</h4>
-                {globalErrors.slice(-10).reverse().map((e) => (
+                <div className={styles.actions}>
+                  {globalErrors.length > 0 && (
+                    <button type="button" className={styles.clearBtn} onClick={clearErrors}>
+                      Очистить
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className={styles.copyBtn}
+                    onClick={copyToClipboard}
+                  >
+                    {copyFeedback ? 'Скопировано' : 'Копировать'}
+                  </button>
+                </div>
+              </div>
+              {globalErrors.length > 0 ? (
+                globalErrors.slice(-10).reverse().map((e) => (
                   <div key={e.id} className={styles.error}>
                     <span className={styles.time}>{e.time}</span> [{e.type}] {e.message}
-                    {expanded && e.stack && (
-                      <pre className={styles.stack}>{e.stack}</pre>
-                    )}
+                    {e.stack && <pre className={styles.stack}>{e.stack}</pre>}
                   </div>
-                ))}
-              </section>
-            )}
+                ))
+              ) : (
+                <p className={styles.noErrors}>Нет ошибок</p>
+              )}
+            </section>
+          </>
+        )}
+      </div>
+    </>
+  )
+
+  const panelContent = open && placement !== 'conference-top' && (
+    <div className={styles.panel}>
+      {panelInner}
+    </div>
+  )
+
+  return (
+    <>
+      <div className={`${styles.root} ${placement === 'conference-top' ? styles.rootConferenceTop : ''}`}>
+        <button
+          type="button"
+          className={styles.toggle}
+          onClick={() => setOpen((o) => !o)}
+          title="Дебаг"
+          data-badge={hasErrors || hasPeerIssues ? '!' : undefined}
+        >
+          ⚙
+        </button>
+        {panelContent}
+      </div>
+      {open && placement === 'conference-top' && (
+        <div
+          className={styles.backdrop}
+          onClick={() => setOpen(false)}
+          aria-hidden
+        >
+          <div
+            className={`${styles.panel} ${styles.panelConferenceTop}`}
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-label="Дебаг"
+          >
+            {panelInner}
           </div>
         </div>
       )}
-    </div>
+    </>
   )
 }

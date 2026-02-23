@@ -28,6 +28,6 @@ export function ConferencePage({
         botUsername={botUsername}
         onLeave={onLeave}
       />
-    </div >
+    </div>
   )
 }

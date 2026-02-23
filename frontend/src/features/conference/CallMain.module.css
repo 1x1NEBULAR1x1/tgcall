@@ -21,6 +21,15 @@
   composes: video;
 }
 
+.videoHidden {
+  composes: video;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
 .name {
   position: absolute;
   bottom: 78px;

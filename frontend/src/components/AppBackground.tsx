@@ -1,4 +1,4 @@
-import LiquidChrome from './bits/LiquidChrome'
+import Aurora from './bits/Aurora'
 
 interface AppBackgroundProps {
   className?: string
@@ -7,13 +7,10 @@ interface AppBackgroundProps {
 export default function AppBackground({ className = '' }: AppBackgroundProps) {
   return (
     <div className={className} aria-hidden>
-      <LiquidChrome
-        baseColor={[0.12, 0.1, 0.14]}
-        speed={0.1}
+      <Aurora
+        colorStops={["#4d2e4a", "#B19EEF", "#1e0e5d"]}
+        speed={0.3}
         amplitude={0.5}
-        frequencyX={3}
-        frequencyY={2}
-        interactive={true}
       />
     </div>
   )

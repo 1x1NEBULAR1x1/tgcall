@@ -1,10 +1,10 @@
-import GradientText from '../../components/bits/GradientText'
 import { useConference } from '../../hooks/useConference'
 import { useDebug } from '../../context/DebugContext'
 import type { AuthUser } from '../../types'
 import { Loader } from '../../shared/ui/Loader'
 import btnStyles from '../../shared/ui/buttons.module.css'
 import errorStyles from '../../shared/ui/error.module.css'
+import { DebugPanel } from '../../components/DebugPanel'
 import { InviteModal } from './InviteModal'
 import { CallMain } from './CallMain'
 import { CallControls } from './CallControls'
@@ -43,6 +43,10 @@ export function Conference({ roomId, token, user, botUsername, onLeave }: Confer
     toggleAudio,
     toggleFacingMode,
     handleLeave,
+    audioWsMode,
+    toggleAudioWs,
+    noiseSuppression,
+    toggleNoiseSuppression,
   } = useConference({ roomId, token, user, botUsername, onLeave, setConferenceDebug, addError })
 
   const peerList = Object.entries(peers)
@@ -89,16 +93,23 @@ export function Conference({ roomId, token, user, botUsername, onLeave }: Confer
 
   return (
     <div className={styles.view}>
-      <button
-        type="button"
-        className={styles.inviteBtn}
-        onClick={() => setInviteModalOpen(true)}
-        aria-label="Пригласить участников"
-      >
-        <GradientText colors={['#7df9ff', '#C084FC', '#A78BFA']} className={styles.inviteBtnText}>
+      <DebugPanel
+        placement="conference-top"
+        audioWsMode={audioWsMode}
+        onToggleAudioWs={toggleAudioWs}
+        noiseSuppression={noiseSuppression}
+        onToggleNoiseSuppression={toggleNoiseSuppression}
+      />
+      <div className={styles.topButtons}>
+        <button
+          type="button"
+          className={styles.inviteBtn}
+          onClick={() => setInviteModalOpen(true)}
+          aria-label="Пригласить участников"
+        >
           Пригласить
-        </GradientText>
-      </button>
+        </button>
+      </div>
 
       {inviteModalOpen && (
         <InviteModal

@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { MicOff } from 'lucide-react'
-import ElectricBorder from '../../components/bits/ElectricBorder'
-import GradientText from '../../components/bits/GradientText'
 import type { PeerInfo } from '../../types'
 import styles from './CallMain.module.css'
 
@@ -27,8 +25,11 @@ export function CallMain({
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const primaryUserId = primaryData?.userId
 
+  const videoRef = useRef<HTMLVideoElement | null>(null)
+
   const onVideoRef = useCallback(
     (el: HTMLVideoElement | null) => {
+      videoRef.current = el
       if (el && peerStream) {
         el.srcObject = peerStream
         el.play().catch(() => { })
@@ -41,13 +42,59 @@ export function CallMain({
     const el = audioRef.current
     if (!el || !peerStream) return
     el.srcObject = peerStream
-    const play = () => el.play().catch(() => {})
-    play()
-    const onAddTrack = () => play()
+    let retryId: ReturnType<typeof setInterval> | null = null
+    let clickAdded = false
+
+    const cleanup = () => {
+      if (retryId) {
+        clearInterval(retryId)
+        retryId = null
+      }
+      document.removeEventListener('click', onUserInteraction)
+    }
+
+    const onUserInteraction = () => {
+      el.play().then(cleanup).catch(() => {})
+    }
+
+    const tryPlay = () => {
+      el.play()
+        .then(cleanup)
+        .catch(() => {
+          if (!clickAdded) {
+            clickAdded = true
+            document.addEventListener('click', onUserInteraction, { once: true })
+          }
+          let attempts = 0
+          const maxAttempts = 15
+          retryId = setInterval(() => {
+            attempts++
+            el.play()
+              .then(cleanup)
+              .catch(() => {})
+            if (attempts >= maxAttempts && retryId) {
+              clearInterval(retryId)
+              retryId = null
+            }
+          }, 1500)
+        })
+    }
+
+    const onAddTrack = () => tryPlay()
+    tryPlay()
     peerStream.addEventListener('addtrack', onAddTrack)
     return () => {
       peerStream.removeEventListener('addtrack', onAddTrack)
+      cleanup()
     }
+  }, [peerStream])
+
+  useEffect(() => {
+    const el = videoRef.current
+    if (!el || !peerStream) return
+    el.srcObject = peerStream
+    el.muted = true
+    el.play().catch(() => {})
   }, [peerStream])
 
   const showVideo = peerVideoEnabled && !!peerStream
@@ -57,62 +104,47 @@ export function CallMain({
       {peerStream && (
         <>
           <audio ref={audioRef} autoPlay playsInline style={{ display: 'none' }} />
-          {showVideo ? (
-            <video
-              key={primaryId}
-              ref={onVideoRef}
-              autoPlay
-              playsInline
-              muted
-              className={`${styles.video} ${styles.videoVisible}`}
-            />
-          ) : null}
+          <video
+            key={primaryId}
+            ref={onVideoRef}
+            autoPlay
+            playsInline
+            muted
+            className={showVideo ? `${styles.video} ${styles.videoVisible}` : styles.videoHidden}
+          />
         </>
       )}
 
       {showVideo && primaryData ? (
         <span className={styles.name}>
-          <GradientText colors={['#e0f2fe', '#c4b5fd']} animationSpeed={5}>
-            {primaryData.displayName}
-          </GradientText>
+          {primaryData.displayName}
         </span>
       ) : (
         <div className={`${styles.placeholder} ${styles.placeholderPeer}`}>
-          <ElectricBorder
-            color="#7df9ff"
-            speed={1}
-            chaos={0.12}
-            borderRadius={999}
-            round
-            style={{ borderRadius: '50%' }}
-          >
-            <div className={`${styles.avatarWrap} ${styles.avatarWrapBordered}`}>
-              {primaryData ? (
-                primaryUserId != null && peerAvatarUrls[primaryUserId] ? (
-                  <img src={peerAvatarUrls[primaryUserId]} alt="" className={styles.avatar} />
-                ) : (
-                  <span className={styles.initials}>
-                    {(primaryData.displayName?.[0] || '?').toUpperCase()}
-                  </span>
-                )
+          <div className={`${styles.avatarWrap} ${styles.avatarWrapBordered}`}>
+            {primaryData ? (
+              primaryUserId != null && peerAvatarUrls[primaryUserId] ? (
+                <img src={peerAvatarUrls[primaryUserId]} alt="" className={styles.avatar} />
               ) : (
-                <span className={styles.initials}>?</span>
-              )}
-              {primaryData && !peerAudioEnabled && (
-                <div className={`${styles.mutedOverlay} ${styles.mutedOverlayAvatar}`}>
-                  <MicOff size={56} strokeWidth={1.5} />
-                </div>
-              )}
-            </div>
-          </ElectricBorder>
+                <span className={styles.initials}>
+                  {(primaryData.displayName?.[0] || '?').toUpperCase()}
+                </span>
+              )
+            ) : (
+              <span className={styles.initials}>?</span>
+            )}
+            {primaryData && !peerAudioEnabled && (
+              <div className={`${styles.mutedOverlay} ${styles.mutedOverlayAvatar}`}>
+                <MicOff size={56} strokeWidth={1.5} />
+              </div>
+            )}
+          </div>
           <span className={styles.waiting}>
-            <GradientText colors={['#a5f3fc', '#c4b5fd']} animationSpeed={6}>
-              {peerListLength > 0
-                ? ['Камера выключена', !peerAudioEnabled && 'Микрофон выключен']
-                  .filter(Boolean)
-                  .join(' • ')
-                : 'Ожидание участников'}
-            </GradientText>
+            {peerListLength > 0
+              ? ['Камера выключена', !peerAudioEnabled && 'Микрофон выключен']
+                .filter(Boolean)
+                .join(' • ')
+              : 'Ожидание участников'}
           </span>
         </div>
       )}

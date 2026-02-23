@@ -1,4 +1,3 @@
-import GradientText from '../../components/bits/GradientText'
 import btnStyles from '../../shared/ui/buttons.module.css'
 import styles from './InviteModal.module.css'
 
@@ -19,9 +18,7 @@ export function InviteModal({
     <div className={styles.backdrop} onClick={onClose}>
       <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
         <h3 className={styles.title}>
-          <GradientText colors={['#7df9ff', '#C084FC']} animationSpeed={6}>
-            Пригласить участников
-          </GradientText>
+          Пригласить участников
         </h3>
         <p className={styles.text}>
           Отправьте ссылку в любой чат. Участник откроет бота и сможет присоединиться к звонку одним

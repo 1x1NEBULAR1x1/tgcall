@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { API_URL } from '../../config'
+import { unlockAudio } from '../../utils/unlockAudio'
 import { safeJson } from '../../utils/safeJson'
 import type { AuthUser } from '../../types'
 import GlassSurface from '../../components/bits/GlassSurface'
-import GradientText from '../../components/bits/GradientText'
 import btnStyles from '../../shared/ui/buttons.module.css'
 import inputStyles from '../../shared/ui/input.module.css'
 import styles from './Lobby.module.css'
@@ -23,6 +23,7 @@ export function Lobby({ token, user, onJoinRoom, onCreateRoom }: LobbyProps) {
 
   const handleCreate = async () => {
     if (!token) return
+    unlockAudio()
     setCreating(true)
     setError('')
     try {
@@ -48,6 +49,7 @@ export function Lobby({ token, user, onJoinRoom, onCreateRoom }: LobbyProps) {
   const handleJoin = async () => {
     const id = roomIdInput.trim()
     if (!id || !token) return
+    unlockAudio()
     setJoining(true)
     setError('')
     try {
@@ -96,21 +98,20 @@ export function Lobby({ token, user, onJoinRoom, onCreateRoom }: LobbyProps) {
       >
         <div className={styles.cardInner}>
           <p className={styles.user}>
-            <GradientText colors={['#e0f2fe', '#c4b5fd']} animationSpeed={6}>
-              Привет, {user?.first_name || 'Участник'}!
-            </GradientText>
+            Привет, {user?.first_name || 'Участник'}!
           </p>
           <button
             type="button"
             className={`${btnStyles.btn} ${btnStyles.primary}`}
-            onClick={() => onJoinRoom('main')}
+            onClick={() => {
+              unlockAudio()
+              onJoinRoom('main')
+            }}
           >
             Войти в общую комнату
           </button>
           <div className={styles.divider}>
-            <GradientText colors={['#a5f3fc', '#818cf8']} animationSpeed={8}>
-              или своя комната
-            </GradientText>
+            или своя комната
           </div>
           <button
             type="button"

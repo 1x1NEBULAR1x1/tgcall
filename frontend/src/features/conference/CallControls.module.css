@@ -43,6 +43,7 @@
   border: none;
   border-radius: 50%;
   cursor: pointer;
+  background: rgba(255, 255, 255, 0.22);
   flex-shrink: 0;
   color: #fff;
   transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s;
